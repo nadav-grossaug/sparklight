@@ -98,6 +98,15 @@ class SparklightRdd:
             count+=1
         return count
     def yield_rdd(self, top_k=-1):
+        # cache():
+        if self.data is not None:
+            if top_k>0:
+                for line in self.data[:top_k]:
+                    yield line
+            else:
+                for line in self.data:
+                    yield line
+            return
         # sort_by :
         if self.sort_by:
             lines=[line for line in self.yield_raw()]
@@ -165,7 +174,6 @@ class SparklightRdd:
         elif self.flat_mapper:
             count=0
             for line in self.yield_raw():
-                # print(line) #REMREM
                 for o in self.flat_mapper(line):
                     count+=1
                     yield o
@@ -237,7 +245,10 @@ class SparklightRdd:
         return rdd
     def sortByKey(self, ascending=True, numPartitions=None, keyfunc=None):
         return self.sortBy(keyfunc,ascending,numPartitions)
-
+    def min(self):
+        return min(self.collect())
+    def max(self):
+        return max(self.collect())
 
 
 if __name__ == "__main__":
