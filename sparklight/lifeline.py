@@ -10,6 +10,10 @@ import arrow
 import time
 import numpy as np
 import pandas as pd
+import vincent # pip install vincent 
+# ### Vincent in ipython requires the following:
+# %matplotlib inline
+# vincent.core.initialize_notebook()
 
 from timevector import DELTA_WINDOW,TimeVector,timevector_to_v,numpy_to_sparkline_string
 class LifeLine:
@@ -43,7 +47,7 @@ class LifeLine:
         timeline_rdd  = self.rdd \
             .map(lambda x: (key_func(x) if key_func(x) in top_k_list else "Other", (date_func(x), time_func(x), 1))) \
             .groupByKey() \
-            .map(lambda x: (x[0],TimeVector(min_date, max_date).from_tuples(x[1], lambda y:int(y>0) ))) \
+            .map(lambda x: (x[0],TimeVector(min_date, max_date, timewindow_mins=self.timewindow_mins).from_tuples(x[1], lambda y:int(y>0) ))) \
             .cache()
         return timeline_rdd
     def plot(self,  value_func=lambda x:1, top_k=9):
@@ -54,7 +58,22 @@ class LifeLine:
                 kind="area"
             )
         return lifeline_rdd
-        
+    
+    
+    def plot_stacked(self,  value_func=lambda x:1, top_k=9, title="Breakdown by group"):
+        lifeline_rdd = self.to_lifeline(value_func=value_func, top_k=top_k)
+        # vlen=lifeline_rdd.first()[1].shape[0]
+        # d = pd.DataFrame(dict(lifeline_rdd.collect()), index=np.arange(vlen)*24.0/timewindow_mins)
+        d = pd.DataFrame( dict(lifeline_rdd.collect()) )
+
+        stacked = vincent.StackedArea(d)
+        stacked.axis_titles(x=title, y="")
+        stacked.legend(title="T")
+        stacked.height=150
+        stacked.width=800
+        stacked.colors(brew='Spectral')
+        stacked.display()
+            
 if __name__ == "__main__":
     from sparklight import SparklightContext,SparklightRdd
     parser = argparse.ArgumentParser()
