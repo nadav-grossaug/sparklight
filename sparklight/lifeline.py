@@ -43,11 +43,11 @@ class LifeLine:
         key_func = self.key_func
         date_func = self.date_func
         time_func = self.time_func
-
+        timewindow_mins = self.timewindow_mins
         timeline_rdd  = self.rdd \
             .map(lambda x: (key_func(x) if key_func(x) in top_k_list else "Other", (date_func(x), time_func(x), 1))) \
             .groupByKey() \
-            .map(lambda x: (x[0],TimeVector(min_date, max_date, timewindow_mins=self.timewindow_mins).from_tuples(x[1], lambda y:int(y>0) ))) \
+            .map(lambda x: (x[0],TimeVector(min_date, max_date, timewindow_mins=timewindow_mins).from_tuples(x[1], lambda y:int(y>0) ))) \
             .cache()
         return timeline_rdd
     def plot(self,  value_func=lambda x:1, top_k=9, normalize_scale=True):
