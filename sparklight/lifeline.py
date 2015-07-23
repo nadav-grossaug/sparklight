@@ -50,23 +50,34 @@ class LifeLine:
             .map(lambda x: (x[0],TimeVector(min_date, max_date, timewindow_mins=self.timewindow_mins).from_tuples(x[1], lambda y:int(y>0) ))) \
             .cache()
         return timeline_rdd
-    def plot(self,  value_func=lambda x:1, top_k=9):
+    def plot(self,  value_func=lambda x:1, top_k=9, normalize_scale=True):
         lifeline_rdd = self.to_lifeline(value_func=value_func, top_k=top_k)
-        for d in lifeline_rdd.collect():
+        data = lifeline_rdd.collect()
+        if normalize_scale:
+            vmax = (0,max([ np.max(d[1]) for d in data]))
+        else:
+            vmax=None
+        for d in data:
             pd.DataFrame(data={d[0]:d[1]}).plot(
                 figsize=[14,0.8], 
-                kind="area"
+                kind="area",
+                ylim=vmax
             )
         return lifeline_rdd
     
     
-    def plot_stacked(self,  value_func=lambda x:1, top_k=9, title="Breakdown by group"):
+    def plot_stacked(self,  value_func=lambda x:1, top_k=9, title="Breakdown by group", use_bar_graph=False):
         lifeline_rdd = self.to_lifeline(value_func=value_func, top_k=top_k)
         # vlen=lifeline_rdd.first()[1].shape[0]
         # d = pd.DataFrame(dict(lifeline_rdd.collect()), index=np.arange(vlen)*24.0/timewindow_mins)
         d = pd.DataFrame( dict(lifeline_rdd.collect()) )
 
-        stacked = vincent.StackedArea(d)
+        if use_bar_graph=="group":
+            stacked = vincent.GroupedBar(d)
+        elif use_bar_graph:
+            stacked = vincent.StackedBar(d)
+        else:
+            stacked = vincent.StackedArea(d)
         stacked.axis_titles(x=title, y="")
         stacked.legend(title="T")
         stacked.height=150
