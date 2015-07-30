@@ -7,7 +7,8 @@ import os
 import gzip
 import glob
 from operator import add 
-
+import codecs
+import errno
 
 SPARKLIGHT_VERBOSE=False
 class SparklightContext:
@@ -217,9 +218,9 @@ class SparklightRdd:
         rdd = SparklightRdd(self)
         rdd.flat_mapper=func
         return rdd
-    def groupByKey(self):
-        return self.groupBy(None)
-    def groupBy(self, func):
+    def groupByKey(self,numPartitions=None):
+        return self.groupBy(None, numPartitions)
+    def groupBy(self, func,numPartitions=None):
         rdd = SparklightRdd(self)
         if func==None: # groupByKey:
             rdd.group_by_key=lambda x:x[0]
@@ -249,7 +250,22 @@ class SparklightRdd:
         return min(self.collect())
     def max(self):
         return max(self.collect())
-
+    def saveAsTextFile(self, path, compressionCodecClass=None):
+        try:
+            os.makedirs(path)
+        except OSError as exc: # Python >2.5
+            if exc.errno == errno.EEXIST and os.path.isdir(path):
+                pass
+            else: raise
+        if compressionCodecClass=="org.apache.hadoop.io.compress.GzipCodec":
+            stream = gzip.open(path+"/part-000000.gz", 'wb')
+        else:
+            stream = codecs.open(path+"/part-000000", "w", "utf-8")
+        for line in self.yield_rdd():
+            stream.write(unicode(line).encode('utf-8'))
+        stream.close()
+        return self
+            
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

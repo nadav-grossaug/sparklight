@@ -27,19 +27,25 @@ class LifeLine:
         self.timewindow_mins=timewindow_mins
     def to_top_k(self, value_func=lambda x:1, top_k=9):
         key_func = self.key_func
-        top_k_list = self.rdd.map(lambda x: (key_func(x), value_func(x))) \
+        top_k_rdd = self.rdd.map(lambda x: (key_func(x), value_func(x))) \
             .reduceByKey(add) \
             .map(lambda x: (x[1],x[0]) ) \
             .sortByKey(False) \
-            .map(lambda x:x[1]) \
-            .take(top_k)
+            .map(lambda x:x[1])
+        if top_k is None:
+            top_k_list=top_k_rdd.collect()
+        else:
+            top_k_list=top_k_rdd.take(top_k)
         return top_k_list
     def to_extent(self):
         self.min_date, self.max_date = TimeVector.to_extent(self.rdd, self.date_func)
         return self.min_date, self.max_date
-    def to_lifeline(self,  value_func=lambda x:1, top_k=9):
+    def to_lifeline(self,  value_func=lambda x:1, top_k=9, extent=None):
         top_k_list = set(self.to_top_k(value_func=value_func, top_k=top_k))
-        min_date, max_date = self.to_extent()
+        if extent is None:
+            min_date, max_date = self.to_extent()
+        else:
+            min_date, max_date = extent
         key_func = self.key_func
         date_func = self.date_func
         time_func = self.time_func
