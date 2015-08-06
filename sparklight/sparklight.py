@@ -9,6 +9,8 @@ import glob
 from operator import add 
 import codecs
 import errno
+import itertools
+import collections
 
 SPARKLIGHT_VERBOSE=False
 class SparklightContext:
@@ -20,6 +22,9 @@ class SparklightContext:
             rdd.paths=paths.split(",")
         else:
             rdd.paths=paths
+        return rdd
+    def parallelize(self, data, numSlices=None):
+        rdd = SparklightRdd(data=data)
         return rdd
     @staticmethod
     def each_line(inputs, limit=-1):
@@ -64,8 +69,8 @@ class SparklightContext:
         stream.close()
 
 class SparklightRdd:
-    def __init__(self, parent_rdd=None):
-        self.data=None
+    def __init__(self, parent_rdd=None, data=None):
+        self.data=data
         self.paths=None
         self.mapper=None
         self.flat_mapper=None
@@ -92,7 +97,7 @@ class SparklightRdd:
     def take(self, top_k):
         return [x for x in self.yield_rdd(top_k)]
     def count(self):
-        if self.data:
+        if self.data and not isinstance(self.data, collections.Callable):
             return len(self.data)
         count = 0
         for x in self.yield_rdd():
@@ -100,12 +105,18 @@ class SparklightRdd:
         return count
     def yield_rdd(self, top_k=-1):
         # cache():
+            
         if self.data is not None:
+            if isinstance(self.data, collections.Callable):
+                data=self.data()
+            else:
+                data =self.data
+            
             if top_k>0:
-                for line in self.data[:top_k]:
+                for line in itertools.islice(data, 0, top_k):
                     yield line
             else:
-                for line in self.data:
+                for line in data:
                     yield line
             return
         # sort_by :
@@ -196,9 +207,18 @@ class SparklightRdd:
                 yield line
                 
     def yield_raw(self, top_k=-1):
-        if self.data is not None:
-            for line in self.data[0:top_k]:
-                yield line
+        if isinstance(self.data, collections.Callable):
+            data=self.data()
+        else:
+            data =self.data
+        
+        if data is not None:
+            if top_k>0:
+                for line in itertools.islice(data, 0, top_k):
+                    yield line
+            else:
+                for line in data:
+                    yield line
         elif self.paths is not None:
             for line in SparklightContext.each_line(self.paths, top_k):
                 yield line
@@ -265,8 +285,22 @@ class SparklightRdd:
             stream.write(unicode(line).encode('utf-8'))
         stream.close()
         return self
-            
-
+    def reduce(self,func):
+        first=True
+        value=None
+        for x in self.yield_rdd():
+            if first:
+                value=x
+                first=False
+            else:
+                value=func(value,x)
+        return value
+    def sum(self):
+        value=0
+        for x in self.yield_rdd():
+            value+=x
+        return value
+        
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-i","--input", type=str, dest='input', nargs='+', default=None,help="Input files")
