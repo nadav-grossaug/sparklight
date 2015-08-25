@@ -123,7 +123,7 @@ class SparklightRdd:
         if self.sort_by:
             lines=[line for line in self.yield_raw()]
             sorted_lines = sorted(lines, 
-                key=self.sort_by, reverse=self.sort_by_ascending)
+                key=self.sort_by, reverse= not self.sort_by_ascending)
             count=0
             for line in sorted_lines:
                 yield line
