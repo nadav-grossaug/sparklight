@@ -46,16 +46,27 @@ class LifeLine:
             min_date, max_date = self.to_extent()
         else:
             min_date, max_date = extent
+        if min_date is None or max_date is None:
+            return self.rdd.filter(False) # return empty rdd if no data
         key_func = self.key_func
         date_func = self.date_func
         time_func = self.time_func
         timewindow_mins = self.timewindow_mins
         timeline_rdd  = self.rdd \
-            .map(lambda x: (key_func(x) if key_func(x) in top_k_list else "Other", (date_func(x), time_func(x), 1))) \
+            .map(lambda x: (key_func(x) if key_func(x) in top_k_list else "Other", (date_func(x), time_func(x), value_func(x)))) \
             .groupByKey() \
-            .map(lambda x: (x[0],TimeVector(min_date, max_date, timewindow_mins=timewindow_mins).from_tuples(x[1], lambda y:int(y>0) ))) \
+            .map(lambda x: (x[0],TimeVector(min_date, max_date, timewindow_mins=timewindow_mins).from_tuples(x[1], lambda x:x))) \
             .cache()
         return timeline_rdd
+    def to_numpy_array(self, value_func=lambda x:1, top_k=9, extent=None):
+        rdd = self.to_lifeline(value_func, top_k, extent)
+        numpy_arr =  np.array(rdd.map(lambda x: x[1]).collect())
+        return numpy_arr
+    def to_extent_dates(self, value_func=lambda x:1, top_k=9, extent=None):
+        if extent is None:
+            min_date, max_date = self.to_extent()
+        else:
+            min_date, max_date = extent
     def plot(self,  value_func=lambda x:1, top_k=9, normalize_scale=True):
         lifeline_rdd = self.to_lifeline(value_func=value_func, top_k=top_k)
         data = lifeline_rdd.collect()

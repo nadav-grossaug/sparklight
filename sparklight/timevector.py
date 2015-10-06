@@ -49,8 +49,8 @@ class TimeVector:
         return self.vec
     @staticmethod 
     def to_extent(rdd, date_func):
-        min_date = rdd.map(date_func).min()
-        max_date = rdd.map(date_func).max()
+        min_date = rdd.min(date_func)
+        max_date = rdd.max(date_func)
         return (min_date,max_date)
     @staticmethod 
     def to_v(tuples, value_func=None, start_date=None, end_date=None,timewindow_mins=DELTA_WINDOW):
@@ -124,7 +124,7 @@ def numpy_to_sparkline_string(vec):
             return SPARKLINES_CHARS[0]*len(vec)
         sparkline=[SPARKLINES_CHARS[
                 int(7.0*(i-min_value)/(max_value-min_value))
-            ] for i in x[1]
+            ] for i in vec
         ]
         return "".join(sparkline)
 

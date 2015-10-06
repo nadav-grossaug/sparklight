@@ -266,10 +266,22 @@ class SparklightRdd:
         return rdd
     def sortByKey(self, ascending=True, numPartitions=None, keyfunc=None):
         return self.sortBy(keyfunc,ascending,numPartitions)
-    def min(self):
-        return min(self.collect())
-    def max(self):
-        return max(self.collect())
+    def min(self, key=None):
+        if key is None:
+            values = self.collect()
+        else:
+            values = self.map(key).collect()
+        if len(values)==0:
+            return None
+        return min(values)
+    def max(self, key=None):
+        if key is None:
+            values = self.collect()
+        else:
+            values = self.map(key).collect()
+        if len(values)==0:
+            return None
+        return max(values)
     def saveAsTextFile(self, path, compressionCodecClass=None):
         try:
             os.makedirs(path)
