@@ -11,6 +11,27 @@ import time
 import numpy as np
 import pandas as pd
 import vincent # pip install vincent 
+
+from IPython.display import display
+import bearcart # pip install git+git://github.com/wrobstory/bearcart.git
+
+# #### Important: the y-axis width is too big:
+# $ vi /Users/ami/anaconda/lib/python2.7/site-packages/bearcart/templates/y_axis.js
+# ### Add the following line
+# var y_axis = new Rickshaw.Graph.Axis.Y( {
+#         graph: graph,
+#         orientation: 'left',
+#         height: {{ height }},
+#         width: 40, # <-- Add this line
+#         tickFormat: Rickshaw.Fixtures.Number.formatKMBT,
+#         element: d3.select("#{{ y_axis_id }}").node()
+# } );
+
+
+# ### Bearcart in ipython requires the following:
+# bearcart.bearcart.initialize_notebook()
+
+
 # ### Vincent in ipython requires the following:
 # %matplotlib inline
 # vincent.core.initialize_notebook()
@@ -26,6 +47,8 @@ class LifeLine:
         self.time_func=time_func
         self.timewindow_mins=timewindow_mins
     def to_top_k(self, value_func=lambda x:1, top_k=9):
+        if top_k==0:
+            return []
         key_func = self.key_func
         top_k_rdd = self.rdd.map(lambda x: (key_func(x), value_func(x))) \
             .reduceByKey(add) \
@@ -62,6 +85,43 @@ class LifeLine:
         rdd = self.to_lifeline(value_func, top_k, extent)
         numpy_arr =  np.array(rdd.map(lambda x: x[1]).collect())
         return numpy_arr
+    def to_datetime_array(self, value_func=lambda x:1, top_k=9, extent=None):
+        if extent is None:
+            min_date, max_date = self.to_extent()
+        else:
+            min_date, max_date = extent
+        numpy_matrix=self.to_numpy_array(value_func=value_func, top_k=top_k, extent=extent)
+        if numpy_matrix.shape==(0,):
+            return None, None
+        n = numpy_matrix.shape[1]
+        start_time=arrow.get(min_date)
+        end_time=arrow.get(max_date).replace(days=1)
+        delta_time = (end_time-start_time) / n
+        date_axis = [
+            (start_time + delta_time * timeslot).format('YYYY-MM-DD HH:mm:ss')
+            for timeslot in xrange(n)
+        ]
+        return np.array(date_axis, dtype='datetime64'), numpy_matrix
+    def to_labels(self, value_func=lambda x:1, top_k=9, extent=None):
+        rdd = self.to_lifeline(value_func, top_k, extent)
+        labels =  np.array(rdd.map(lambda x: x[0]).collect())
+        return labels
+    def to_pandas_series(self, value_func=lambda x:1, extent=None):
+        datetime_vector,numpy_matrix = self.to_datetime_array(value_func=value_func, top_k=0, extent=extent)
+        if datetime_vector is None:
+            return pd.Series()
+        return pd.Series(numpy_matrix[0], index=datetime_vector)
+    def to_pandas_dataframe(self, value_func=lambda x:1,top_k=9, extent=None):
+        datetime_vector,numpy_matrix = self.to_datetime_array(value_func=value_func, top_k=top_k, extent=extent)
+        labels = self.to_labels(value_func=value_func, top_k=top_k)
+        if datetime_vector is None:
+            return pd.DataFrame()
+        all_series={}
+        for i in xrange(len(labels)):
+            name = labels[i]
+            if name != "Other":
+                all_series[name]=numpy_matrix[i]
+        return pd.DataFrame(all_series, index=datetime_vector)
     def to_extent_dates(self, value_func=lambda x:1, top_k=9, extent=None):
         if extent is None:
             min_date, max_date = self.to_extent()
@@ -101,7 +161,36 @@ class LifeLine:
         stacked.width=800
         stacked.colors(brew='Spectral')
         stacked.display()
-            
+
+
+    def plot_bearcart(self,  value_func=lambda x:1, top_k=9, plt_type=None, legend=False, width=700):
+        # plt_type: 'bar, 'area', 'line', 'scatterplot'
+        
+        lifeline_rdd = self.to_lifeline(value_func=value_func, top_k=top_k)
+        if lifeline_rdd.count()==0:
+            return
+        datetime_vector,numpy_matrix = self.to_datetime_array()
+        labels = self.to_labels(value_func=value_func, top_k=top_k)
+        df = pd.DataFrame( 
+            numpy_matrix.T,
+            index=datetime_vector,
+            columns=labels
+            )
+
+        if plt_type is None:
+            plt_type="bar"
+        
+        vis = bearcart.Chart(df, 
+                width=width-200*legend, 
+                height=150, 
+                y_zero=True, 
+                x_time=True, 
+                legend=legend, 
+                plt_type=plt_type, 
+                y_axis=True)
+        vis.create_chart()
+        display(vis)
+                    
 if __name__ == "__main__":
     from sparklight import SparklightContext,SparklightRdd
     parser = argparse.ArgumentParser()

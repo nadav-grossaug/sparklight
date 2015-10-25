@@ -128,5 +128,16 @@ def numpy_to_sparkline_string(vec):
         ]
         return "".join(sparkline)
 
+
+def date_string_to_date_time(time_str, hour_shift=0):
+    # time_str='2015-09-07 10:50:14.445'
+    if isinstance(time_str, int) or isinstance(time_str, float):
+        ts=arrow.get(time_str)
+    else:
+        ts=arrow.get(time_str, 'YYYY-MM-DD HH:mm:ss')
+    ts = ts.replace(hours=hour_shift)
+    date = ts.format('YYYY-MM-DD')
+    hour = ts.format('HH:mm:ss')
+    return date, hour
 if __name__ == "__main__":
     pass
