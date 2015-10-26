@@ -102,6 +102,23 @@ class LifeLine:
             for timeslot in xrange(n)
         ]
         return np.array(date_axis, dtype='datetime64'), numpy_matrix
+    def yield_date_hour(self, value_func=lambda x:1, top_k=9, extent=None):
+        if extent is None:
+            min_date, max_date = self.to_extent()
+        else:
+            min_date, max_date = extent
+        numpy_matrix=self.to_numpy_array(value_func=value_func, top_k=top_k, extent=extent)
+        if numpy_matrix.shape==(0,):
+            return
+        n = numpy_matrix.shape[1]
+        start_time=arrow.get(min_date)
+        end_time=arrow.get(max_date).replace(days=1)
+        delta_time = (end_time-start_time) / n
+        for timeslot in xrange(n):
+            now = (start_time + delta_time * timeslot)
+            date = now.format('YYYY-MM-DD')
+            hour = now.format('HH:mm:ss')
+            yield date,hour
     def to_labels(self, value_func=lambda x:1, top_k=9, extent=None):
         rdd = self.to_lifeline(value_func, top_k, extent)
         labels =  np.array(rdd.map(lambda x: x[0]).collect())
