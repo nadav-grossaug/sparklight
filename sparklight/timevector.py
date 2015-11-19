@@ -115,6 +115,108 @@ class HashTimeVector:
         ts_quantization = ts.replace(second=0, minutes= -1*((ts.hour*60+ts.minute) % self.delta))
         return (ts_quantization.format('YYYY-MM-DD'),ts_quantization.format('HH:mm:ss'))
 
+
+
+class TimeMatrix:
+    """
+    generate a time vectorss, where each data point is mean on vectors
+    """
+    def __init__(self, start_date, end_date, start_hour="00:00:00", end_hour="23:59:00", timewindow_mins=DELTA_WINDOW, vector_len=None):
+        self.start_date = start_date
+        self.end_date = end_date
+        self.start_hour = start_hour
+        self.end_hour = end_hour
+        self.delta = timewindow_mins
+        self.deltas_per_day = 24.0*60/self.delta
+        self.start_index = self.to_timeindex(self.start_date, self.start_hour, False)
+        self.len=self.to_timeindex(self.end_date, self.end_hour)+1
+        self.sums = np.zeros([self.len, vector_len])
+        self.n = np.ones(self.len)
+    def vector(self):
+        return (self.sums.T/self.n).T
+        # return self.sums
+    def inc(self, date, hour, vec):
+        index = self.to_timeindex(date, hour)
+        self.sums[index]= self.sums[index] + vec
+        self.n[index]+=1
+    def to_timeindex(self, date, hour, relative_to_start_time=True):
+        hour = hour.split(".")[0] # omit_milliseconds
+        #     timestamp = time.strptime(hour,"%H:%M:%S") # <= '23:58:21.574703'
+        timestamp = time.strptime(date+" "+hour,"%Y-%m-%d %H:%M:%S")
+        hour_index = (timestamp.tm_hour*60.0+timestamp.tm_min)/self.delta
+        date_index = ((timestamp.tm_year-EPOCH)*365+timestamp.tm_yday) * self.deltas_per_day
+        index= int(date_index + hour_index)
+        if relative_to_start_time:
+            index -= self.start_index
+        return index
+    def from_tuples(self, tuples, map_func=None):
+        for date, hour, vec in tuples:
+            if map_func:
+                vec = map_func(vec)
+            self.inc(date, hour, vec)
+        return self.vector()
+    @staticmethod 
+    def to_extent(rdd, date_func):
+        min_date = rdd.min(date_func)
+        max_date = rdd.max(date_func)
+        return (min_date,max_date)
+    @staticmethod 
+    def to_v(tuples, map_func=None, start_date=None, end_date=None,timewindow_mins=DELTA_WINDOW):
+        if start_date==None:
+            start_date=min([date for date,hour,vec in tuples])
+        if end_date==None:
+            end_date=max([date for date,hour,vec in tuples])
+        first_vector = tuples[0][2]
+        v = TimeMatrix( start_date, end_date, timewindow_mins=timewindow_mins, vector_len=len(first_vector))
+        return v.from_tuples(tuples, map_func)
+    @staticmethod 
+    def to_series(tuples, map_func=None, start_date=None, end_date=None,timewindow_mins=DELTA_WINDOW):
+        if start_date==None:
+            start_date=min([date for date,hour,vec in tuples])
+        if end_date==None:
+            end_date=max([date for date,hour,vec in tuples])
+        first_vector = tuples[0][2]
+        n = len(first_vector)
+        v = TimeMatrix( start_date, end_date, timewindow_mins=timewindow_mins, vector_len=n)
+        vec = v.from_tuples(tuples, map_func)
+        
+        start_time=arrow.get(start_date)
+        end_time=arrow.get(end_date).replace(days=1)
+        m = vec.shape[0]
+        delta_time = (end_time-start_time) / m
+        date_axis = np.array([
+            (start_time + delta_time * timeslot).format('YYYY-MM-DD HH:mm:ss')
+            for timeslot in xrange(m)
+        ], dtype='datetime64')
+        return vec,date_axis
+        
+    @staticmethod 
+    def from_rdd(rdd, date_func, time_func, vec_func, start_date=None, end_date=None,timewindow_mins=DELTA_WINDOW):
+        tuples = rdd.map(lambda x:(date_func(x), time_func(x), vec_func(x))).collect()
+        return TimeMatrix.to_v(tuples, 
+                start_date=start_date, 
+                end_date=end_date,
+                timewindow_mins=timewindow_mins
+         )
+    @staticmethod 
+    def from_rdd_to_series(rdd, date_func, time_func, vec_func, start_date=None, end_date=None,timewindow_mins=DELTA_WINDOW):
+        tuples = rdd.map(lambda x:(date_func(x), time_func(x), vec_func(x))).collect()
+        return TimeMatrix.to_series(tuples, 
+                start_date=start_date, 
+                end_date=end_date,
+                timewindow_mins=timewindow_mins
+         )
+
+def timevector_to_v(tuples, value_func=None, start_date=None, end_date=None,timewindow_mins=DELTA_WINDOW):
+    if start_date==None:
+        start_date=min([date for date,hour,value in tuples])
+    if end_date==None:
+        end_date=max([date for date,hour,value in tuples])
+    v = TimeVector( start_date, end_date, timewindow_mins=timewindow_mins )
+    return v.from_tuples(tuples, value_func)
+    
+
+
 SPARKLINES_CHARS= u"▁▂▃▄▅▆▇█"
 
 def numpy_to_sparkline_string(vec):

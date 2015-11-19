@@ -186,7 +186,7 @@ class LifeLine:
         lifeline_rdd = self.to_lifeline(value_func=value_func, top_k=top_k)
         if lifeline_rdd.count()==0:
             return
-        datetime_vector,numpy_matrix = self.to_datetime_array()
+        datetime_vector,numpy_matrix = self.to_datetime_array(value_func=value_func, top_k=top_k)
         labels = self.to_labels(value_func=value_func, top_k=top_k)
         df = pd.DataFrame( 
             numpy_matrix.T,

@@ -82,6 +82,7 @@ class SparklightRdd:
         self.flag_distinct=False
         self.sort_by=None
         self.sort_by_ascending=True
+        self.union_list=None
     def repartition(self, partitions):
         return self
     def cache(self):
@@ -96,6 +97,9 @@ class SparklightRdd:
         return out[0]
     def take(self, top_k):
         return [x for x in self.yield_rdd(top_k)]
+    def foreach(self, f):
+        for x in self.yield_rdd():
+            f(x)
     def count(self):
         if self.data and not isinstance(self.data, collections.Callable):
             return len(self.data)
@@ -139,7 +143,7 @@ class SparklightRdd:
                     hash[line]=0
                 hash[line]+=1
             count=0
-            for key, count in hash.iteritems():
+            for key in hash.iterkeys():
                 yield key
                 count+=1
                 if count==top_k:
@@ -219,6 +223,11 @@ class SparklightRdd:
             else:
                 for line in data:
                     yield line
+                    
+        elif self.union_list is not None:
+             for an_rdd in self.union_list:
+                 for line in an_rdd.yield_rdd():
+                     yield line
         elif self.paths is not None:
             for line in SparklightContext.each_line(self.paths, top_k):
                 yield line
@@ -257,6 +266,10 @@ class SparklightRdd:
         rdd = SparklightRdd(self)
         rdd.flag_distinct=True
         return rdd
+    def union(self, other):
+        rdd = SparklightRdd(self)
+        rdd.union_list=(self, other)
+        return rdd
     def sortBy(self, keyfunc, ascending=True, numPartitions=None):
         if keyfunc==None:
             keyfunc=lambda x:x[0]
@@ -294,7 +307,7 @@ class SparklightRdd:
         else:
             stream = codecs.open(path+"/part-000000", "w", "utf-8")
         for line in self.yield_rdd():
-            stream.write(unicode(line).encode('utf-8'))
+            stream.write(unicode(line+"\n").encode('utf-8'))
         stream.close()
         return self
     def reduce(self,func):
