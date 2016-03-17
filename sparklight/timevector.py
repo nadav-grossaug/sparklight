@@ -230,6 +230,18 @@ def numpy_to_sparkline_string(vec):
         ]
         return "".join(sparkline)
 
+def number_to_sparkline_string(value, max_value, min_value=0, width=10):
+    if value is None or value==float('Inf') or value==float('Nan'):
+        return " "*width
+    if max_value==min_value:
+        return SPARKLINES_CHARS[-1]*width
+    if value>max_value:
+        value = max_value
+    if value<min_value:
+        value=min_value
+    ratio = 1.0*(value-min_value)/(max_value-min_value)
+    spaces = int(ratio*width)
+    return SPARKLINES_CHARS[-1]*spaces + " "*(width-spaces)
 
 def date_string_to_date_time(time_str, hour_shift=0):
     # time_str='2015-09-07 10:50:14.445'

@@ -79,6 +79,7 @@ class SparklightRdd:
         self.group_by_value=None
         self.filter_func=None
         self.reduce_by_key=None
+        self.top_tuple=None
         self.flag_distinct=False
         self.sort_by=None
         self.sort_by_ascending=True
@@ -133,6 +134,21 @@ class SparklightRdd:
                 yield line
                 count+=1
                 if count==top_k:
+                    return
+            return
+        # ### top
+        if self.top_tuple:
+            n, key_func = self.top_tuple
+            if key_func is None:
+                key_func = lambda x: x
+            lines=[line for line in self.yield_raw()]
+            sorted_lines = sorted(lines, 
+                key=key_func, reverse=True)
+            count=0
+            for line in sorted_lines:
+                yield line
+                count+=1
+                if count==n:
                     return
             return
         # ### distinct
@@ -269,6 +285,10 @@ class SparklightRdd:
     def union(self, other):
         rdd = SparklightRdd(self)
         rdd.union_list=(self, other)
+        return rdd
+    def top(self, n, key=None):
+        rdd = SparklightRdd(self)
+        rdd.top_tuple=(n, key)
         return rdd
     def sortBy(self, keyfunc, ascending=True, numPartitions=None):
         if keyfunc==None:
