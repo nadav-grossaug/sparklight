@@ -51,8 +51,8 @@ class LifeLine:
             return []
         key_func = self.key_func
         top_k_rdd = self.rdd.map(lambda x: (key_func(x), value_func(x))) \
-            .reduceByKey(add) \
-            .map(lambda x: (x[1],x[0]) ) \
+            .groupByKey() \
+            .map(lambda x: (np.mean(x[1]),x[0]) ) \
             .sortByKey(False) \
             .map(lambda x:x[1])
         if top_k is None:
@@ -207,7 +207,7 @@ class LifeLine:
                 y_axis=True)
         vis.create_chart()
         display(vis)
-                    
+
 if __name__ == "__main__":
     from sparklight import SparklightContext,SparklightRdd
     parser = argparse.ArgumentParser()

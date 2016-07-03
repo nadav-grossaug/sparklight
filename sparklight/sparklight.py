@@ -206,11 +206,14 @@ class SparklightRdd:
         elif self.flat_mapper:
             count=0
             for line in self.yield_raw():
-                for o in self.flat_mapper(line):
-                    count+=1
-                    yield o
-                    if count==top_k:
-                        return
+                iters = self.flat_mapper(line)
+                if iters:
+                    for o in iters:
+                        if o!=None:
+                            count+=1
+                            yield o
+                            if count==top_k:
+                                return
             return
         # ### filter
         elif self.filter_func:
