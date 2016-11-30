@@ -75,6 +75,7 @@ class SparklightRdd:
         self.mapper=None
         self.flat_mapper=None
         self.parent_rdd=parent_rdd
+        self.zip_with_index=None
         self.group_by_key=None
         self.group_by_value=None
         self.filter_func=None
@@ -194,6 +195,11 @@ class SparklightRdd:
                 if count==top_k:
                     return
             return
+        # ### zipWithIndex
+        if self.zip_with_index:
+            for index, value in enumerate(self.yield_raw()):
+                yield value, index 
+            return
         # ### group-by
         if self.group_by_key:
             hash={}
@@ -280,6 +286,10 @@ class SparklightRdd:
         return rdd
     def groupByKey(self,numPartitions=None):
         return self.groupBy(None, numPartitions)
+    def zipWithIndex(self):
+        rdd = SparklightRdd(self)
+        rdd.zip_with_index=True
+        return rdd
     def groupBy(self, func,numPartitions=None):
         rdd = SparklightRdd(self)
         if func==None: # groupByKey:
