@@ -91,6 +91,10 @@ class SparklightRdd:
         return self
     def collect(self):
         return self.take(-1)
+    def collectAsMap(self):
+        return dict(self.collect())
+    def toLocalIterator(self):
+        return self.yield_rdd(-1)
     def first(self):
         out = self.take(1)
         if len(out)==0:
@@ -98,6 +102,14 @@ class SparklightRdd:
         return out[0]
     def take(self, top_k):
         return [x for x in self.yield_rdd(top_k)]
+    def takeOrdered(self, num, key=None):
+        if key==None:
+            key=lambda x:x
+        return self.sortBy(key, ascending=True).take(num)
+    def top(self, num, key=None):
+        if key==None:
+            key=lambda x:x
+        return self.sortBy(key, ascending=False).take(num)
     def foreach(self, f):
         for x in self.yield_rdd():
             f(x)
@@ -288,10 +300,6 @@ class SparklightRdd:
     def union(self, other):
         rdd = SparklightRdd(self)
         rdd.union_list=(self, other)
-        return rdd
-    def top(self, n, key=None):
-        rdd = SparklightRdd(self)
-        rdd.top_tuple=(n, key)
         return rdd
     def sortBy(self, keyfunc, ascending=True, numPartitions=None):
         if keyfunc==None:

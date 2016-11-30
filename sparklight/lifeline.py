@@ -46,15 +46,21 @@ class LifeLine:
         self.date_func=date_func
         self.time_func=time_func
         self.timewindow_mins=timewindow_mins
-    def to_top_k(self, value_func=lambda x:1, top_k=9):
+    def to_top_k(self, value_func=lambda x:1, top_k=9, metric_max=True):
         if top_k==0:
             return []
         key_func = self.key_func
-        top_k_rdd = self.rdd.map(lambda x: (key_func(x), value_func(x))) \
-            .groupByKey() \
-            .map(lambda x: (np.mean(x[1]),x[0]) ) \
-            .sortByKey(False) \
-            .map(lambda x:x[1])
+        if metric_max:
+            top_k_rdd = self.rdd.map(lambda x: (key_func(x), value_func(x))) \
+                .reduceByKey(add) \
+                .sortBy(lambda x:x[1], ascending=False) \
+                .map(lambda x:x[0])
+        else: # metric mean
+            top_k_rdd = self.rdd.map(lambda x: (key_func(x), value_func(x))) \
+                .groupByKey() \
+                .map(lambda x: (np.mean(x[1]),x[0]) ) \
+                .sortByKey(False) \
+                .map(lambda x:x[1])
         if top_k is None:
             top_k_list=top_k_rdd.collect()
         else:
@@ -144,7 +150,7 @@ class LifeLine:
             min_date, max_date = self.to_extent()
         else:
             min_date, max_date = extent
-    def plot(self,  value_func=lambda x:1, top_k=9, normalize_scale=True):
+    def plot(self,  value_func=lambda x:1, top_k=9, normalize_scale=True, kind="area"):
         lifeline_rdd = self.to_lifeline(value_func=value_func, top_k=top_k)
         data = lifeline_rdd.collect()
         if normalize_scale:
@@ -154,17 +160,40 @@ class LifeLine:
         for d in data:
             pd.DataFrame(data={d[0]:d[1]}).plot(
                 figsize=[14,0.8], 
-                kind="area",
+                kind=kind,
                 ylim=vmax
             )
         return lifeline_rdd
     
     
-    def plot_stacked(self,  value_func=lambda x:1, top_k=9, title="Breakdown by group", use_bar_graph=False):
+    def plot_stacked(self,  value_func=lambda x:1, top_k=9, title="Breakdown by group", use_bar_graph=False, order_by_score=False, omit_other=False):
         lifeline_rdd = self.to_lifeline(value_func=value_func, top_k=top_k)
         # vlen=lifeline_rdd.first()[1].shape[0]
         # d = pd.DataFrame(dict(lifeline_rdd.collect()), index=np.arange(vlen)*24.0/timewindow_mins)
-        d = pd.DataFrame( dict(lifeline_rdd.collect()) )
+
+        if order_by_score:
+            if lifeline_rdd.count()==0:
+                return
+            datetime_vector,numpy_matrix = self.to_datetime_array(value_func=value_func, top_k=top_k)
+            labels = self.to_labels(value_func=value_func, top_k=top_k)
+
+            reordered_lables =[ label for label in  self.to_top_k(value_func=value_func, top_k=top_k)]
+            if not omit_other:
+                reordered_lables.append("Other")
+
+            reordered_matrix = np.zeros(( len(reordered_lables), numpy_matrix.shape[1]))
+            for v,label in zip(numpy_matrix, labels):
+                if label in reordered_lables:
+                    index = reordered_lables.index(label)
+                    reordered_matrix[index]=v
+            d = pd.DataFrame(
+                reordered_matrix.T,
+                index=datetime_vector,
+                columns=reordered_lables
+                )
+        else:
+            d = pd.DataFrame( dict(lifeline_rdd.collect()) )
+        # d = pd.DataFrame( dict(lifeline_rdd.collect()) )
 
         if use_bar_graph=="group":
             stacked = vincent.GroupedBar(d)
@@ -180,7 +209,7 @@ class LifeLine:
         stacked.display()
 
 
-    def plot_bearcart(self,  value_func=lambda x:1, top_k=9, plt_type=None, legend=False, width=700):
+    def plot_bearcart(self,  value_func=lambda x:1, top_k=9, plt_type=None, legend=False, width=700, order_by_score=False):
         # plt_type: 'bar, 'area', 'line', 'scatterplot'
         
         lifeline_rdd = self.to_lifeline(value_func=value_func, top_k=top_k)
@@ -188,6 +217,29 @@ class LifeLine:
             return
         datetime_vector,numpy_matrix = self.to_datetime_array(value_func=value_func, top_k=top_k)
         labels = self.to_labels(value_func=value_func, top_k=top_k)
+        
+        if order_by_score:
+            if omit_other:
+                omit_other="Other"
+            reordered_lables =[ label for label in  self.to_top_k(value_func=value_func, top_k=top_k) if label!=omit_other]
+
+            reordered_matrix = np.zeros(( len(reordered_lables), numpy_matrix.shape[1]))
+            for v,label in zip(numpy_matrix, labels):
+                if label in reordered_lables:
+                    index = reordered_lables.index(label)
+                    reordered_matrix[index]=v
+            print(labels) #REMREM
+            print(numpy_matrix.shape) # RMEREM
+            print(reordered_matrix.shape) # RMEREM
+            print(len(datetime_vector)) # REMREM
+            print(len(reordered_lables)) # REMREM
+            d = pd.DataFrame(
+                reordered_matrix.T,
+                index=datetime_vector,
+                columns=reordered_lables
+                )
+
+                    
         df = pd.DataFrame( 
             numpy_matrix.T,
             index=datetime_vector,
