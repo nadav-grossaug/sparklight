@@ -11,9 +11,15 @@ import time
 import numpy as np
 import pandas as pd
 import vincent # pip install vincent 
+from past.builtins import xrange
 
 from IPython.display import display
-import bearcart # pip install git+git://github.com/wrobstory/bearcart.git
+try:
+    import bearcart # pip install git+git://github.com/wrobstory/bearcart.git
+except:
+    pass
+
+
 
 # #### Important: the y-axis width is too big:
 # $ vi /Users/ami/anaconda/lib/python2.7/site-packages/bearcart/templates/y_axis.js

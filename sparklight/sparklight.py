@@ -11,6 +11,15 @@ import codecs
 import errno
 import itertools
 import collections
+import six
+
+# Fix Python 2.x unicode : source http://stackoverflow.com/questions/6812031/how-to-make-unicode-string-with-python3
+try:
+    UNICODE_EXISTS = bool(type(unicode))
+except NameError:
+    unicode = lambda s, encoding=None: str(s,encoding)
+
+
 
 SPARKLIGHT_VERBOSE=False
 class SparklightContext:
@@ -62,7 +71,7 @@ class SparklightContext:
                 count+=1
                 if count==limit:
                     break
-            except UnicodeDecodeError, ex:
+            except UnicodeDecodeError as ex:
                 if SPARKLIGHT_VERBOSE:
                     sys.stderr.write("Exception UnicodeDecodeError "+str(ex)+" for line: "+line+"\n")
                 
@@ -85,6 +94,14 @@ class SparklightRdd:
         self.sort_by=None
         self.sort_by_ascending=True
         self.union_list=None
+    # @TODO: add implementation for:
+    # flatMapValues
+    # foldByKey
+    # countByKey
+    # countByValue
+    # aggregate
+    # aggregateByKey
+    
     def repartition(self, partitions):
         return self
     def cache(self):
@@ -172,7 +189,7 @@ class SparklightRdd:
                     hash[line]=0
                 hash[line]+=1
             count=0
-            for key in hash.iterkeys():
+            for key in six.iterkeys(hash):
                 yield key
                 count+=1
                 if count==top_k:
@@ -189,7 +206,7 @@ class SparklightRdd:
                 else:
                     hash[key]=self.reduce_by_key(hash[key],value)
             count=0
-            for key, value in hash.iteritems():
+            for key, value in six.iteritems(hash):
                 yield (key,value)
                 count+=1
                 if count==top_k:
@@ -209,7 +226,7 @@ class SparklightRdd:
                     hash[key]=[]
                 hash[key].append(self.group_by_value(line))
             count=0
-            for key, arr in hash.iteritems():
+            for key, arr in six.iteritems(hash):
                 yield (key,arr)
                 count+=1
                 if count==top_k:

@@ -9,6 +9,7 @@ from collections import defaultdict
 import arrow
 import time
 import numpy as np
+from six.moves import xrange
 
 EPOCH=1970
 DELTA_WINDOW=60
@@ -84,7 +85,7 @@ class HashTimeVector:
         if self.start_date is None and self.end_date is None:
             self.start_date, self.end_date = self.to_extent()
         tv = TimeVector(self.start_date, self.end_date, timewindow_mins=self.delta)
-        tv.from_tuples([ (x[0][0], x[0][1], x[1]) for x in self.hash.iteritems()  ])
+        tv.from_tuples([ (x[0][0], x[0][1], x[1]) for x in six.iteritems(self.hash)  ])
         return tv.vector()
     def to_axis(self, as_int=False):
         vec=self.vector()
@@ -99,8 +100,8 @@ class HashTimeVector:
             date = date.replace(minutes=self.delta)
         return axis,vec
     def to_extent(self):
-        min_date = min([x[0] for x in self.hash.iterkeys()])
-        max_date = max([x[0] for x in self.hash.iterkeys()])
+        min_date = min([x[0] for x in six.iterkeys(self.hash)])
+        max_date = max([x[0] for x in six.iterkeys(self.hash)])
         return (min_date,max_date)
     def force_extent(self,start_date, end_date):
         self.start_date = start_date
@@ -189,6 +190,33 @@ class TimeMatrix:
             for timeslot in xrange(m)
         ], dtype='datetime64')
         return vec,date_axis
+    @staticmethod 
+    def to_series_ex(tuples_rdd, map_func=None, start_date=None, end_date=None,timewindow_mins=DELTA_WINDOW):
+        if map_func==None:
+            map_func=lambda z:z
+        if start_date==None:
+            start_date=tuples_rdd.map(lambda x:x[0]).min()
+        if end_date==None:
+            end_date=tuples_rdd.map(lambda x:x[0]).max()
+        first_vector = tuples_rdd.first()[2]
+
+        n = len(first_vector)
+        v = TimeMatrix( start_date, end_date, timewindow_mins=timewindow_mins, vector_len=n)
+        
+        tuples_rdd \
+            .foreach(lambda x: (x[0], x[1], map_func(x[2]))) #v.inc( x[0], x[1], map_func(x[2]) ) )
+        vec = v.vector()
+        
+        start_time=arrow.get(start_date).replace(hour=0, minute=0, seconds=0)
+        end_time=arrow.get(end_date).replace(days=1).replace(hour=0, minute=0, seconds=0)
+        m = vec.shape[0]
+        delta_time = (end_time-start_time) / m
+        print(start_time); print(end_time) ;print("delta_time="); print( delta_time)
+        date_axis = np.array([
+            (start_time + delta_time * timeslot).format('YYYY-MM-DD HH:mm:ss')
+            for timeslot in xrange(m)
+        ], dtype='datetime64')
+        return vec,date_axis
         
     @staticmethod 
     def from_rdd(rdd, date_func, time_func, vec_func, start_date=None, end_date=None,timewindow_mins=DELTA_WINDOW):
@@ -200,8 +228,14 @@ class TimeMatrix:
          )
     @staticmethod 
     def from_rdd_to_series(rdd, date_func, time_func, vec_func, start_date=None, end_date=None,timewindow_mins=DELTA_WINDOW):
-        tuples = rdd.map(lambda x:(date_func(x), time_func(x), vec_func(x))).collect()
-        return TimeMatrix.to_series(tuples, 
+        # tuples = rdd.map(lambda x:(date_func(x), time_func(x), vec_func(x))).collect()
+        # return TimeMatrix.to_series(tuples,
+        #         start_date=start_date,
+        #         end_date=end_date,
+        #         timewindow_mins=timewindow_mins
+        #  )
+        tuples_rdd = rdd.map(lambda x:(date_func(x), time_func(x), vec_func(x)))
+        return TimeMatrix.to_series_ex(tuples_rdd, 
                 start_date=start_date, 
                 end_date=end_date,
                 timewindow_mins=timewindow_mins
