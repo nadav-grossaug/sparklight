@@ -186,12 +186,12 @@ class Timeliner(object):
 
         mapping = {}
         date = arrow.get(start_date)
+        end_date_t =  arrow.get(end_date).replace(days=1) # last day + 1
         slot = 0
-        while(date<=arrow.get(end_date)):
+        while(date<end_date_t):
             mapping[date.format("YYYY-MM-DD HH:mm:ss")]= slot
             slot+=1
             date=date.replace(minutes=self.timewindow_mins_)
-            
         # generate matrix:
         if is_rdd:
             n = rdd.map(vec_func).first().shape[0]
