@@ -19,6 +19,12 @@ try:
 except:
     pass
 
+try:
+    import plotly # pip install plotly
+    import plotly.graph_objs as go
+except:
+    pass
+
 
 
 # #### Important: the y-axis width is too big:
@@ -214,6 +220,63 @@ class LifeLine:
         stacked.colors(brew='Spectral')
         stacked.display()
 
+    def plot_plotly_timeseries(self,  value_func=lambda x:1, top_k=9, title="Breakdown by group", order_by_score=True, omit_other=False):
+        lifeline_rdd = self.to_lifeline(value_func=value_func, top_k=top_k)
+
+        if order_by_score:
+            if lifeline_rdd.count()==0:
+                return
+            datetime_vector,numpy_matrix = self.to_datetime_array(value_func=value_func, top_k=top_k)
+            labels = self.to_labels(value_func=value_func, top_k=top_k)
+
+            reordered_lables =[ label for label in  self.to_top_k(value_func=value_func, top_k=top_k)]
+            if not omit_other:
+                reordered_lables.append("Other")
+
+            reordered_matrix = np.zeros(( len(reordered_lables), numpy_matrix.shape[1]))
+            for v,label in zip(numpy_matrix, labels):
+                if label in reordered_lables:
+                    index = reordered_lables.index(label)
+                    reordered_matrix[index]=v
+            d = pd.DataFrame(
+                reordered_matrix.T,
+                index=datetime_vector,
+                columns=reordered_lables
+                )
+        else:
+            d = pd.DataFrame( dict(lifeline_rdd.collect()) )
+        # d = pd.DataFrame( dict(lifeline_rdd.collect()) )
+        data = []
+        for lbl in reordered_lables:
+            data.append( go.Bar(x=d.index, y=d[lbl], name = lbl ))
+        layout = dict(
+            autosize=False,
+            width=1600,
+            height=450,
+        
+            barmode='stack',
+            title=title,
+            xaxis=dict(
+                rangeselector=dict(
+                    buttons=list([
+                        dict(count=1,
+                             label='1m',
+                             step='month',
+                             stepmode='backward'),
+                        dict(count=1,
+                             label='1w',
+                             step='week',
+                             stepmode='backward'),
+                        dict(step='all')
+                    ])
+                ),
+                rangeslider=dict(),
+                type='date'
+            )
+        )
+
+        fig = dict(data=data, layout=layout)
+        plotly.offline.iplot(fig, filename = "Time Series with Rangeslider")
 
     def plot_bearcart(self,  value_func=lambda x:1, top_k=9, plt_type=None, legend=False, width=700, order_by_score=False):
         # plt_type: 'bar, 'area', 'line', 'scatterplot'
