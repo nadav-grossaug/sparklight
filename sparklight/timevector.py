@@ -50,8 +50,8 @@ class TimeVector:
         return self.vec
     @staticmethod 
     def to_extent(rdd, date_func):
-        min_date = rdd.min(date_func)
-        max_date = rdd.max(date_func)
+        min_date = rdd.map(date_func).min()
+        max_date = rdd.map(date_func).max()
         return (min_date,max_date)
     @staticmethod 
     def to_v(tuples, value_func=None, start_date=None, end_date=None,timewindow_mins=DELTA_WINDOW):
