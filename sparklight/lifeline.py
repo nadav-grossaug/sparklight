@@ -220,7 +220,7 @@ class LifeLine:
         stacked.colors(brew='Spectral')
         stacked.display()
 
-    def plot_plotly_timeseries(self,  value_func=lambda x:1, top_k=9, title="Breakdown by group", order_by_score=True, omit_other=False):
+    def plot_plotly_timeseries(self,  value_func=lambda x:1, top_k=9, title="Breakdown by group", order_by_score=True, omit_other=False, width=1600):
         lifeline_rdd = self.to_lifeline(value_func=value_func, top_k=top_k)
 
         if order_by_score:
@@ -251,7 +251,7 @@ class LifeLine:
             data.append( go.Bar(x=d.index, y=d[lbl], name = lbl ))
         layout = dict(
             autosize=False,
-            width=1600,
+            width=width,
             height=450,
         
             barmode='stack',

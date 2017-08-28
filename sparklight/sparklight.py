@@ -365,7 +365,8 @@ class SparklightRdd:
         else:
             stream = codecs.open(path+"/part-000000", "w", "utf-8")
         for line in self.yield_rdd():
-            stream.write(unicode(line+"\n").encode('utf-8'))
+            # stream.write(unicode(line+"\n", "utf-8").encode('utf-8'))
+            stream.write(unicode(line, "utf-8")+"\n")
         stream.close()
         return self
     def reduce(self,func):

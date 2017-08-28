@@ -10,7 +10,8 @@ import arrow
 import time
 import numpy as np
 from six.moves import xrange
-
+import ciso8601 # pip install ciso8601
+import datetime
 
 """
 
@@ -64,7 +65,7 @@ from six.moves import xrange
 
 DELTA_WINDOW=60
 
-def to_time_quant(date, hour, timewindow_mins):
+def to_time_quant_old(date, hour, timewindow_mins):
     """ return arrow time object after quantization by timewindow_mins.
     Example usage:
     to_time_quant("2017-04-30", "13:23:02.23",timewindow_mins=0.5 ) 
@@ -78,6 +79,20 @@ def to_time_quant(date, hour, timewindow_mins):
                 .replace(minutes=int(minutes_since_midnight))
     return new_date.format("YYYY-MM-DD HH:mm:ss")
 
+def to_time_quant(date, hour, timewindow_mins):
+    """ return arrow time object after quantization by timewindow_mins.
+    Example usage:
+    to_time_quant("2017-04-30", "13:23:02.23",timewindow_mins=0.5 ) 
+    # => <Arrow [2017-04-30T13:23:00.230000+00:00]>
+    """
+    # dt = arrow.get(date+" "+hour)
+    dt = ciso8601.parse_datetime(date+"T"+hour)
+    minutes_since_midnight =  timewindow_mins * \
+                    ((60*dt.hour+ dt.minute )// timewindow_mins)
+    new_date = datetime.datetime(dt.year, dt.month, dt.day) + \
+            datetime.timedelta(minutes=minutes_since_midnight)
+    return "%04d-%02d-%02d %02d:%02d:%02d" % (new_date.year, new_date.month, new_date.day,
+            new_date.hour, new_date.minute, new_date.second)
 def to_one_hot(ohl, name, count=1):
     vec = np.zeros(len(ohl), dtype=float)
     if name in ohl:
