@@ -12,7 +12,7 @@ import numpy as np
 from six.moves import xrange
 import ciso8601 # pip install ciso8601
 import datetime
-
+import types
 """
 
     Timeliner is a helper class that converts a timeline rdd to a numpy matrix(es) 
@@ -103,7 +103,6 @@ def to_one_hot(ohl, name, count=1):
 def matrix_plus( mat, column, vec):
     mat[column,:]+=vec
 
-
 def vectorize_with_weights(groupby_tuple, vectorizer_func):
     key, arr =  groupby_tuple
     return np.sum([ vectorizer_func(value)*count for key,value,count in arr], axis=0)
@@ -117,6 +116,7 @@ class Timeliner(object):
         self.reducer_func_=lambda x:1
         self.cache_=False
         self.reduced_rdd_ = None
+        self.partition_counts_ = 1
     def timewindow_mins(self, minutes):
         self.timewindow_mins_ = minutes
         return self
@@ -150,6 +150,7 @@ class Timeliner(object):
         hour_f= self.hour_func_
         value_f = self.value_func_
         key_f = self.key_func_
+        partition_counts = self.partition_counts_
         reducer_f = self.reducer_func_
         if date_f==None or hour_f==None or value_f==None or key_f==None:
             sys.stderr.write("ERROR: some of the date,hour, vectorizer_func or key_func are not set. Exiting. \n")
@@ -164,6 +165,7 @@ class Timeliner(object):
             )
             .reduceByKey(add) 
             .map(lambda x:  ( (x[0][0], x[0][1]), x[0][2], x[1]  ))
+            .repartition(partition_counts)
         )
         """ # reduced_rdd_.first() => (('general', '2017-01-12 15:00:00'),
  'example-1', 18) """
@@ -171,17 +173,20 @@ class Timeliner(object):
             self.reduced_rdd_=self.reduced_rdd_.cache()
         return self.reduced_rdd_
     def to_vector_rdd(self):
+        partition_counts = self.partition_counts_
+
         rdd = self.to_reduced_rdd()
         vectorizer_f = self.vectorizer_func_ 
         vec_rdd  = (rdd
             .groupBy(lambda x:x[0])
+            .repartition(partition_counts)
             .map(lambda x: (x[0], vectorize_with_weights(x,vectorizer_f)))
         )
         return vec_rdd
     def to_matrix(self,rdd=None, to_bool=False, start_date=None,end_date=None ):
         if rdd==None:
             rdd =self.to_vector_rdd()
-        is_rdd = not isinstance(rdd, (list, tuple))
+        is_rdd = not isinstance(rdd, (list, tuple, types.GeneratorType))
 
         date_func = lambda x:x[0][1].split(" ")[0]
         vec_func = lambda x: x[1]
@@ -214,7 +219,8 @@ class Timeliner(object):
             n = vec_func(rdd[0]).shape[0]
         mat = np.zeros((len(mapping), n), dtype=float)
         if is_rdd:
-            rdd.foreach(lambda x: matrix_plus(mat, column=mapping[x[0][1]], vec=x[1]))
+            for x in rdd.toLocalIterator():
+                matrix_plus(mat, column=mapping[x[0][1]], vec=x[1])
         else:
             for x in rdd:
                 matrix_plus(mat, column=mapping[x[0][1]], vec=x[1])
@@ -229,9 +235,17 @@ class Timeliner(object):
         date_func = lambda x:x[0][1].split(" ")[0]
         start_date = rdd.map(date_func).min()
         end_date = rdd.map(date_func).max()
-        results_rdd = rdd.groupBy(lambda x:x[0][0]) \
-            .map(lambda x: (x[0],
-                    self.to_matrix(x[1], to_bool, start_date, end_date)
-                           )   )
-        for key, mat_times in results_rdd.collect():
+        for key, groupby_elem in rdd.groupBy(lambda x:x[0][0]).toLocalIterator():
+            mat_times = self.to_matrix( groupby_elem, to_bool, start_date, end_date)
             yield key, mat_times[0], mat_times[1]
+#     def to_groupby_key_matrix(self,to_bool=False):
+#         rdd = self.to_vector_rdd()
+#         date_func = lambda x:x[0][1].split(" ")[0]
+#         start_date = rdd.map(date_func).min()
+#         end_date = rdd.map(date_func).max()
+#         results_rdd = rdd.groupBy(lambda x:x[0][0]) \
+#             .map(lambda x: (x[0],
+#                     self.to_matrix(list(x[1]), to_bool, start_date, end_date)
+#                            )   )
+#         for key, mat_times in results_rdd.toLocalIterator():
+#             yield key, mat_times[0], mat_times[1]
