@@ -186,7 +186,7 @@ class Timeliner(object):
     def to_matrix(self,rdd=None, to_bool=False, start_date=None,end_date=None ):
         if rdd==None:
             rdd =self.to_vector_rdd()
-        is_rdd = not isinstance(rdd, (list, tuple, types.GeneratorType))
+        is_rdd = not isinstance(rdd, (list, tuple, types.GeneratorType)) and not "__iter__" in dir(rdd)
 
         date_func = lambda x:x[0][1].split(" ")[0]
         vec_func = lambda x: x[1]
@@ -213,17 +213,16 @@ class Timeliner(object):
             slot+=1
             date=date.replace(minutes=self.timewindow_mins_)
         # generate matrix:
+        mat = None
         if is_rdd:
-            n = rdd.map(vec_func).first().shape[0]
+            iter_g = (x for x in rdd.toLocalIterator())
         else:
-            n = vec_func(rdd[0]).shape[0]
-        mat = np.zeros((len(mapping), n), dtype=float)
-        if is_rdd:
-            for x in rdd.toLocalIterator():
-                matrix_plus(mat, column=mapping[x[0][1]], vec=x[1])
-        else:
-            for x in rdd:
-                matrix_plus(mat, column=mapping[x[0][1]], vec=x[1])
+            iter_g = (x for x in rdd)
+        for x in iter_g:
+            if mat is None:
+                n = vec_func(x).shape[0]
+                mat = np.zeros((len(mapping), n), dtype=float)
+            matrix_plus(mat, column=mapping[x[0][1]], vec=x[1])
         times = sorted(mapping.keys())
         if to_bool:
             mat=1.0*(mat>0)
