@@ -12,6 +12,7 @@ import errno
 import itertools
 import collections
 import six
+import math
 
 # Fix Python 2.x unicode : source http://stackoverflow.com/questions/6812031/how-to-make-unicode-string-with-python3
 try:
@@ -20,6 +21,15 @@ except NameError:
     unicode = lambda s, encoding=None: str(s,encoding)
 
 
+class Row(object):
+    def __init__(self,**kwargs):
+        for key,value in kwargs.items():
+            self.__setattr__(key,value)
+    def asDict(self):
+        return self.__dict__
+    def __repr__(self):
+        out=str(self.__dict__)
+        return "Row("+out[1:-1]+")"
 
 SPARKLIGHT_VERBOSE=False
 class SparklightContext:
@@ -384,6 +394,21 @@ class SparklightRdd:
         for x in self.yield_rdd():
             value+=x
         return value
+    def mean(self):
+        value=0
+        count=0
+        for x in self.yield_rdd():
+            value+=x
+            count+=1
+        return 1.0*value/count
+    def stdev(self):
+        mean_f = self.mean()
+        value=0
+        count=0
+        for x in self.yield_rdd():
+            value+= (x-mean_f)**2
+            count+=1
+        return math.sqrt(value/count)
         
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
