@@ -76,7 +76,7 @@ def to_time_quant_old(date, hour, timewindow_mins):
                     ((60*dt.hour+ dt.minute )// timewindow_mins)
     new_date = dt \
                 .replace(hour=0, minute=0, second=0) \
-                .replace(minutes=int(minutes_since_midnight))
+                .shift(minutes=int(minutes_since_midnight))
     return new_date.format("YYYY-MM-DD HH:mm:ss")
 
 def to_time_quant(date, hour, timewindow_mins):
@@ -206,12 +206,12 @@ class Timeliner(object):
 
         mapping = {}
         date = arrow.get(start_date)
-        end_date_t =  arrow.get(end_date).replace(days=1) # last day + 1
+        end_date_t =  arrow.get(end_date).shift(days=1) # last day + 1
         slot = 0
         while(date<end_date_t):
             mapping[date.format("YYYY-MM-DD HH:mm:ss")]= slot
             slot+=1
-            date=date.replace(minutes=self.timewindow_mins_)
+            date=date.shift(minutes=self.timewindow_mins_)
         # generate matrix:
         mat = None
         if is_rdd:

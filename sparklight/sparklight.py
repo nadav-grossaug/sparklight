@@ -13,7 +13,7 @@ import itertools
 import collections
 import six
 import math
-
+import random
 # Fix Python 2.x unicode : source http://stackoverflow.com/questions/6812031/how-to-make-unicode-string-with-python3
 try:
     UNICODE_EXISTS = bool(type(unicode))
@@ -98,6 +98,7 @@ class SparklightRdd:
         self.group_by_key=None
         self.group_by_value=None
         self.filter_func=None
+        self.sample_func=None
         self.reduce_by_key=None
         self.top_tuple=None
         self.flag_distinct=False
@@ -270,6 +271,16 @@ class SparklightRdd:
                     if count==top_k:
                         return
             return
+        # ### sample
+        elif self.sample_func:
+            count=0
+            for line in self.yield_raw():
+                if self.sample_func(line):
+                    count+=1
+                    yield line
+                    if count==top_k:
+                        return
+            return
         else:
             for line in self.yield_raw(top_k):
                 yield line
@@ -302,6 +313,13 @@ class SparklightRdd:
     def filter(self, func):
         rdd = SparklightRdd(self)
         rdd.filter_func=func
+        return rdd
+    def sample(self, withReplacement, fraction, seed=None):
+        # withReplacement is not implemented
+        if seed:
+            random.seedseed
+        rdd = SparklightRdd(self)
+        rdd.sample_func=lambda x: random.random()<=fraction
         return rdd
     def map(self, func):
         rdd = SparklightRdd(self)
@@ -371,12 +389,13 @@ class SparklightRdd:
                 pass
             else: raise
         if compressionCodecClass=="org.apache.hadoop.io.compress.GzipCodec":
-            stream = gzip.open(path+"/part-000000.gz", 'wb')
+            stream = gzip.open(path+"/part-000000.gz", 'wt')
         else:
-            stream = codecs.open(path+"/part-000000", "w", "utf-8")
+            stream = codecs.open(path+"/part-000000", "wt", "utf-8")
         for line in self.yield_rdd():
             # stream.write(unicode(line+"\n", "utf-8").encode('utf-8'))
-            stream.write(unicode(line, "utf-8")+"\n")
+            #stream.write(unicode(line, "utf-8")+"\n")
+            stream.write(line+"\n")
         stream.close()
         return self
     def reduce(self,func):

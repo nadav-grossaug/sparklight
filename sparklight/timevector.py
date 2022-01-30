@@ -97,7 +97,7 @@ class HashTimeVector:
                 axis.append(date.timestamp)
             else:
                 axis.append(date.format('YYYY-MM-DD HH:mm:ss'))
-            date = date.replace(minutes=self.delta)
+            date = date.shift(minutes=self.delta)
         return axis,vec
     def to_extent(self):
         min_date = min([x[0] for x in six.iterkeys(self.hash)])
@@ -113,7 +113,7 @@ class HashTimeVector:
     def to_timequantization(self, date, hour):
         hour = hour.split(".")[0] # omit_milliseconds
         ts = arrow.get("%s %s" % (date, hour), 'YYYY-MM-DD HH:mm:ss')
-        ts_quantization = ts.replace(second=0, minutes= -1*((ts.hour*60+ts.minute) % self.delta))
+        ts_quantization = ts.replace(second=0).shift(minutes= -1*((ts.hour*60+ts.minute) % self.delta))
         return (ts_quantization.format('YYYY-MM-DD'),ts_quantization.format('HH:mm:ss'))
 
 
@@ -182,7 +182,7 @@ class TimeMatrix:
         vec = v.from_tuples(tuples, map_func)
         
         start_time=arrow.get(start_date)
-        end_time=arrow.get(end_date).replace(days=1)
+        end_time=arrow.get(end_date).shift(days=1)
         m = vec.shape[0]
         delta_time = (end_time-start_time) / m
         date_axis = np.array([
@@ -207,8 +207,8 @@ class TimeMatrix:
             .foreach(lambda x: (x[0], x[1], map_func(x[2]))) #v.inc( x[0], x[1], map_func(x[2]) ) )
         vec = v.vector()
         
-        start_time=arrow.get(start_date).replace(hour=0, minute=0, seconds=0)
-        end_time=arrow.get(end_date).replace(days=1).replace(hour=0, minute=0, seconds=0)
+        start_time=arrow.get(start_date).replace(hour=0, minute=0, second=0)
+        end_time=arrow.get(end_date).shift(days=1).replace(hour=0, minute=0, second=0)
         m = vec.shape[0]
         delta_time = (end_time-start_time) / m
         print(start_time); print(end_time) ;print("delta_time="); print( delta_time)
@@ -283,7 +283,7 @@ def date_string_to_date_time(time_str, hour_shift=0):
         ts=arrow.get(time_str)
     else:
         ts=arrow.get(time_str, 'YYYY-MM-DD HH:mm:ss')
-    ts = ts.replace(hours=hour_shift)
+    ts = ts.shift(hours=hour_shift)
     date = ts.format('YYYY-MM-DD')
     hour = ts.format('HH:mm:ss')
     return date, hour

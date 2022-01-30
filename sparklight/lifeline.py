@@ -113,7 +113,7 @@ class LifeLine:
             return None, None
         n = numpy_matrix.shape[1]
         start_time=arrow.get(min_date)
-        end_time=arrow.get(max_date).replace(days=1)
+        end_time=arrow.get(max_date).shift(days=1)
         delta_time = (end_time-start_time) / n
         date_axis = [
             (start_time + delta_time * timeslot).format('YYYY-MM-DD HH:mm:ss')
@@ -130,7 +130,7 @@ class LifeLine:
             return
         n = numpy_matrix.shape[1]
         start_time=arrow.get(min_date)
-        end_time=arrow.get(max_date).replace(days=1)
+        end_time=arrow.get(max_date).shift(days=1)
         delta_time = (end_time-start_time) / n
         for timeslot in xrange(n):
             now = (start_time + delta_time * timeslot)
