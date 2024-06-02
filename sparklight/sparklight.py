@@ -5,7 +5,7 @@ import sys
 import argparse
 import os
 import gzip
-import glob
+import glob2
 from operator import add 
 import codecs
 import errno
@@ -14,11 +14,18 @@ import collections
 import six
 import math
 import random
+import tqdm
+import types
 # Fix Python 2.x unicode : source http://stackoverflow.com/questions/6812031/how-to-make-unicode-string-with-python3
 try:
     UNICODE_EXISTS = bool(type(unicode))
 except NameError:
     unicode = lambda s, encoding=None: str(s,encoding)
+
+try:
+    from collections.abc import Callable # Python 3.6
+except ImportError:
+    from collections import Callable
 
 
 class Row(object):
@@ -47,7 +54,7 @@ class SparklightContext:
         return rdd
     @staticmethod
     def each_line(inputs, limit=-1):
-        if inputs!=None and isinstance(inputs,list):
+        if inputs!=None and isinstance(inputs,(list, tuple)) or isinstance(inputs, types.GeneratorType):
             count = 0
             for input in inputs:
                 for line in SparklightContext.each_line(input):
@@ -61,10 +68,10 @@ class SparklightContext:
         if filename==None or filename=="-" or filename=="stdin":
             stream = sys.stdin
         elif "*" in filename:
-            for line in SparklightContext.each_line(glob.glob(filename), limit):
+            for line in SparklightContext.each_line(glob2.glob(filename), limit):
                 yield line
             return
-        elif filename.endswith(".gz"):
+        elif filename.endswith(".gz") or filename.endswith(".Z"):
             if SPARKLIGHT_VERBOSE:
                 sys.stderr.write("RDD Open gz file for reading: "+filename+"\n")
             stream = gzip.open(filename,'rb')
@@ -74,16 +81,22 @@ class SparklightContext:
             stream = open(filename, "rb")
 
         count = 0
-        for line in stream:
-            try:
-                line = unicode(line, 'utf8').strip()
-                yield line
-                count+=1
-                if count==limit:
-                    break
-            except UnicodeDecodeError as ex:
-                if SPARKLIGHT_VERBOSE:
-                    sys.stderr.write("Exception UnicodeDecodeError "+str(ex)+" for line: "+line+"\n")
+        try:
+            for line in stream:
+                try:
+                    line = unicode(line, 'utf8')
+                    if line.endswith("\n"):
+                        line=line[:-1]
+                    yield line
+                    count+=1
+                    if count==limit:
+                        break
+                except UnicodeDecodeError as ex:
+                    if SPARKLIGHT_VERBOSE:
+                        sys.stderr.write("Exception UnicodeDecodeError "+str(ex)+" for line: "+line+"\n")
+        except EOFError as ex:
+            if SPARKLIGHT_VERBOSE:
+                sys.stderr.write("Exception EOFError "+str(ex)+" for line: "+line+"\n")
                 
         stream.close()
 
@@ -92,6 +105,7 @@ class SparklightRdd:
         self.data=data
         self.paths=None
         self.mapper=None
+        self.tqdm_mapper=None
         self.flat_mapper=None
         self.parent_rdd=parent_rdd
         self.zip_with_index=None
@@ -143,7 +157,7 @@ class SparklightRdd:
         for x in self.yield_rdd():
             f(x)
     def count(self):
-        if self.data and not isinstance(self.data, collections.Callable):
+        if self.data and not isinstance(self.data, Callable):
             return len(self.data)
         count = 0
         for x in self.yield_rdd():
@@ -153,7 +167,7 @@ class SparklightRdd:
         # cache():
             
         if self.data is not None:
-            if isinstance(self.data, collections.Callable):
+            if isinstance(self.data, Callable):
                 data=self.data()
             else:
                 data =self.data
@@ -243,6 +257,12 @@ class SparklightRdd:
                 if count==top_k:
                     return
             return
+        elif self.tqdm_mapper:
+            # ### map
+            for line in tqdm.tqdm(self.yield_raw(top_k), total=self.tqdm_mapper):
+                yield line
+            return
+            # ### flat-map
         elif self.mapper:
             # ### map
             for line in self.yield_raw(top_k):
@@ -286,7 +306,7 @@ class SparklightRdd:
                 yield line
                 
     def yield_raw(self, top_k=-1):
-        if isinstance(self.data, collections.Callable):
+        if isinstance(self.data, Callable):
             data=self.data()
         else:
             data =self.data
@@ -320,6 +340,10 @@ class SparklightRdd:
             random.seedseed
         rdd = SparklightRdd(self)
         rdd.sample_func=lambda x: random.random()<=fraction
+        return rdd
+    def tqdm_map(self, ):
+        rdd = SparklightRdd(self)
+        rdd.tqdm_mapper=self.count()
         return rdd
     def map(self, func):
         rdd = SparklightRdd(self)
